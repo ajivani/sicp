@@ -1,15 +1,7 @@
 #lang racket
-
-;when playing around - notes
-;git init
-;git add README.md
-;git commit -m "first commit"
-;git remote add origin https://github.com/ajivani/sicp.git
-;git push -u origin master
-;https://github.com/ajivani/sicp.git
-
 (define (test a)
   (print a))
+
 
 (define (sq x)
   (* x x))
@@ -1269,75 +1261,10 @@
 
 ;;sicp-deriv.rkt - that file ahs our algebraic expressions
 ;;to define a set! do a method of data abstraction -> define operations to be used on a "set"
-;;union-set, intersection-set, element-of-set? adjoin-set
-;;;start with just a list and lets see some cost benefits of using this as a data structure
-
-;;assuming list of distinct elements as the data structure add a -l to it so that later part makes sense
-;;just put it as an unordered list
-(define (element-of-set?-l x s1)
-  (cond ((null? s1) #f)
-        ((equal? x (car s1)) #t)
-        (else (element-of-set?-l x (cdr s1)))))
-
-(define (adjoin-set-l x s)
-  (if (element-of-set?-l x s)
-      s
-      (cons x s)))
-
-(define (intersection-of-set-l s1 s2)
-  (cond ((or (null? s1) (null? s2)) '())
-        ((element-of-set?-l (car s1) s2)
-         (cons (car s1)
-               (intersection-of-set-l (cdr s1) s2)))
-        (else (intersection-of-set-l (cdr s1) s2))))
-
-;;like map but just
-(define (for-each proc lst)
-  (if (null? lst)
-      null
-      (and (proc (car lst)) (for-each proc (cdr lst)))))
-      
-;;add s1 to result set, and add only elements from s2 that are not already elements of s1
-;;exercise 2.59 
-(define (union-set-l% s1 s2)
-  (let ((res-set (append s1 '())))
-    (for-each (lambda (item)
-                (if (not (element-of-set?-l item s1))
-                    (set! res-set (adjoin-set-l item res-set))
-                    null))
-              s2)
-    res-set))
-
-(define (union-set-l2% s1 s2)
-  (define (rec s2 acc)
-    (cond ((null? s2)
-           acc)
-          ((element-of-set?-l (car s2) s1)
-           (rec (cdr s2) acc))
-          (else
-           (rec (cdr s2) (cons (car s2) acc)))))
-  (rec s2 s1))
-
-;third iterative way of doing it - let adjoin-set either add or not add the element
-(define (union-set-l s1 s2)
-  (define (rec s2 acc)
-    (cond ((null? s2)
-           acc)
-          (else
-           (rec (cdr s2) (adjoin-set-l (car s2) acc)))))
-  (rec s2 s1))
-
-;;now instead of an unordered list we can have duplicates for it
-;ex 2.60
-;;element of set - no change 
-;;adjoin set could be easier and just be (cons x set), O(1) time
-;;union set is just (append set1 set2) -> makes it O(1) time
-;need to makea change since -> (intersection-of-set-l '(1 2 3 1 2 3) '(6 7 8 2 5 1 2 9 3 3)); => (1 2 3 1 2 3); O(n)
-;;well in theory this represents the same set so it works.
-
-;;now sets as ordered lists
+;;union-set, intersection-set, element-of-set?
+;;adjoin-set
+;;;start with just a list and lets see some cost benefits
 
 
 
-               
-               
+    

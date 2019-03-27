@@ -1330,12 +1330,248 @@
 ;;now instead of an unordered list we can have duplicates for it
 ;ex 2.60
 ;;element of set - no change 
-;;adjoin set could be easier and just be (cons x set), O(1) time
+;;adjoin set could be easier and just be (cons x set), O(1) time, just add it to the front of the list without doing an O(n) is element-in-set?
 ;;union set is just (append set1 set2) -> makes it O(1) time
-;need to makea change since -> (intersection-of-set-l '(1 2 3 1 2 3) '(6 7 8 2 5 1 2 9 3 3)); => (1 2 3 1 2 3); O(n)
+;need to makea change since -> (intersection-of-set-l '(1 2 3 1 2 3) '(6 7 8 2 5 1 2 9 3 3)); => (1 2 3 1 2 3); O(n^2) uses element of a set
 ;;well in theory this represents the same set so it works.
 
-;;now sets as ordered lists
+;;now sets as ordered lists; O(n) worst case
+(define (element-of-set?-ol x s1)
+  (cond ((or (null? s1) (< x (car s1)))
+         #f)
+        ((equal? x (car s1)) #t)
+        (else
+         (element-of-set?-ol x (cdr s1)))))
+;;now that they're ordered we don't have to do a complete scan of s2 for each elem of s1
+(define (intersection-set-ol s1 s2)
+  (if (or (null? s1) (null? s2))
+      '()
+      (let ((x1 (car s1)) (x2 (car s2)))
+        (cond ((= x1 x2)
+               (cons x1 (intersection-set-ol (cdr s1) (cdr s2))))
+              ((> x1 x2)
+               (intersection-set-ol s1 (cdr s2)))
+              (else
+               (intersection-set-ol (cdr s1) s2))))))
+;;still have to go throuh set1 sequentially, just know that when x < currnet elem we know to insert the element
+;;don't see how it is faster
+;;version 1 lets make this better
+(define (adjoin-set-ol% x ss1)
+  (define (rec s1 acc)
+    (cond ((null? s1)
+           (append acc (list x)))
+          ((= x (car s1)) ;this is double redundancy and doesn't make function any faster
+           (append acc s1))
+          ((< x (car s1));don't worry about when they're equal can do another check and keep it O(n)
+           (append acc (list x) s1)); (append '( 1 2 3) '(12) '( 12 9 20)) => '(1 2 3 12 12 9 20)
+          (else
+           (rec (cdr s1) (append acc (list (car s1)))))))
+  (if (element-of-set?-ol x ss1)
+      ss1
+      (rec ss1 '())))
+
+(define (adjoin-set-ol x s1)
+  (cond ((null? s1) (cons x '()))
+        ((= x (car s1)) s1); 
+        ((< x (car s1))
+         (cons x s1)); insert x between here, we've found the right spot
+        (else
+         (cons (car s1) (adjoin-set-ol x (cdr s1)))))); most likely case at first
+
+;(intersection-of-set-l '(1 2 3 1 2 3) '(6 7 8 5959 5604 1 2 09 3 3))
+;(adjoin-set-ol 4 '( 1 2 3 5 6 7)) => works
+;(adjoin-set-ol 4 '( 5 6 7))
+;(adjoin-set-ol 4 '( 1 2))
+;(adjoin-set-ol 4 '())
+;(adjoin-set-ol 4 '( 1 2 3 4))
+;(adjoin-set-ol 4 '( 1 2 3 4 5 6 7))
+;(adjoin-set-ol 4 '(4))
+;(adjoin-set-ol 4 '( 3 3.5))
+;;2.62
+;O(n) implementaton of union-set for ordered lists
+;;add from each list until both null
+;;reminds me of merge from mergesort - the combine step
+(define (union-set-ol s1 s2)
+  (cond ((and (null? s1) (null? s2))
+         '())
+        ((and (null? s1) (not (null? s2)))
+         s2)
+        ((and (not (null? s1)) (null? s2))
+         s1)
+        ((= (car s1) (car s2))
+         (cons (car s1) (union-set-ol (cdr s1) (cdr s2))))
+        ((< (car s1) (car s2))
+         (cons (car s1) (union-set-ol (cdr s1) s2)))
+        (else
+         (cons (car s2) (union-set-ol s1 (cdr s2))))))
+
+;(union-set-ol '(1 12 15 16 17 19) '(1 2 3 4 11 12))
+
+
+;;so we can represent them as trees as well
+
+(define (entry tree) (car tree))
+(define (left-br tree) (cadr tree))
+(define (right-br tree) (caddr tree))
+(define (make-tree entry left right)
+  (list entry left right))
+
+(define tree1 (make-tree 5
+                          (make-tree 4
+                                     (make-tree 2 null null)
+                                     (make-tree 4.5 '() '()))
+                          (make-tree 8
+                                     (make-tree 6 '() '())
+                                     (make-tree 10
+                                                '()
+                                                (make-tree 12 '() '())))))
+
+
+(define tree2 (make-tree 5.1
+                          (make-tree 4.1
+                                     (make-tree 2 null null)
+                                     (make-tree 4.5 '() '()))
+                          (make-tree 8.1
+                                     (make-tree 6 '() '())
+                                     (make-tree 10.1
+                                                '()
+                                                (make-tree 12 '() '())))))
+
+(define (element-of-set?-tr x tree)
+  (cond ((null? tree)
+         #f)
+        ((= x (entry tree))
+         #t)
+        ((< x (entry tree))
+         (element-of-set?-tr x (left-br tree)))
+        (else
+         (element-of-set?-tr x (right-br tree)))))
+
+(define (adjoin-set-tr x tree)
+  (cond ((null? tree) (make-tree x '() '()))
+        ((= x (entry tree)) tree)
+        ((< x (entry tree))
+         (adjoin-set-tr x (left-br tree)))
+        (else
+         (adjoin-set-tr x (right-br tree)))))
+
+
+(define (tree->list-1 tree)
+  (if (null? tree)
+      '()
+      (append (tree->list-1 (left-br tree))
+              (cons (entry tree)
+                    (tree->list-1 (right-br tree))))))
+
+(define (tree->list-2 tree)
+  (define (copy-to-list tree result-list)
+    (if (null? tree)
+        result-list
+        (copy-to-list (left-br tree)
+                      (cons (entry tree)
+                            (copy-to-list (right-br tree)
+                                          result-list)))))
+  (copy-to-list tree '()))
+
+
+;;2.64
+;;note how the list must be in order
+;(partial-tree '(1) 1) -> (1 () ())
+
+;mid point, left side (not including mid), right side not including mid
+;(partial-tree '(1 2mid 3 4 mid 6 7 8mid 9 10) -> (mid (2mid {left side}) (8mid {right-side})
+
+;;induction when it's down to the last element it gets the left and right side
+;;divides the problem into left-side, mid, right-side
+;;needs to combine this in 2 ways
+;; if it's a leaf when the size is 0 returns '()
+;;otherwise cons with a make-tree of the current entry the left and right sides
+
+(define (list->tree elements)
+  (car (partial-tree elements (length elements))))
+(define (partial-tree elts n)
+  (if (= n 0)
+      (cons '() elts)
+      (let ((left-size (quotient (- n 1) 2)))
+        (let ((left-result (partial-tree elts left-size)))
+          (let ((left-tree (car left-result))
+                (non-left-elts (cdr left-result))
+                (right-size (- n (+ left-size 1))))
+            (let ((this-entry (car non-left-elts))
+                  (right-result (partial-tree (cdr non-left-elts)
+                                              right-size)))
+              (let ((right-tree (car right-result))
+                    (remaining-elts (cdr right-result)))
+                (cons (make-tree this-entry left-tree right-tree)
+                      remaining-elts))))))))
+
+;(partial-tree '(1) 1)
+;(partial-tree '(1 3) 2)
+
+;(partial-tree '(1 2 3 4 5) 5)
+;(list->tree (enumerate-interval 1 100))
+
+
+;;2.65 union-set and intersection-set in o(n) time, would need both functions above,
+;see how it's like a laplace transform
+;;convert to ordered-list do transformation and then convert to tree, this way resulting tree isn't weird, and we don't have to do an element by element search
+(define (union-intersection-helper-tree proc t1 t2)
+  (let ((ordered-list1 (tree->list-1 t1))
+        (ordered-list2 (tree->list-1 t2)))
+    (let ((result-set (proc ordered-list1 ordered-list2)))
+      (list->tree result-set))))
+
+(define (union-set-tree t1 t2)
+  (union-intersection-helper-tree union-set-ol t1 t2))
+
+(define (intersection-set-tree t1 t2)
+  (union-intersection-helper-tree intersection-set-ol t1 t2))
+                                     
+
+;;2.66,
+(;define (lookup given-key tree)
+ ; (cond ((null? tree) #f)
+ ;       ((equal? (key (car tree)) given-key)
+ ;        (car tree))
+ ;       ((> (key (car tree)) given-key)
+ ;        (lookup given-key (right-branch tree)))
+ ;       (else
+ ;        (lookup given-key (left-branch tree)))))
+
+;representing huffman trees
+(define (make-leaf symbol weight)
+  (list 'leaf symbol weight))
+(define (leaf? obj)
+  (eq? (car obj) 'leaf))
+(define (symbol-leaf leaf)
+  (cadr leaf))
+(define (weight-leaf leaf)
+  (caddr leaf))
+
+;;set of symbols just a list of symbols (doesn't need to be ordered set - no benefit to that)
+;make a tree by merging 2 nodes we get sum of weights and union of sets of all the symbols
+(define (make-huff-tree left right)
+  (list left
+        right
+        (append (symbols left) (symbols right))
+        (+ (weight left) (weight right))))
+;;selectors for the above tree
+(define (left-branch-h tree) (car tree))
+(define (right-branch-h tree) (cadr tree))
+(define (symbols tree)
+  (if (leaf? tree)
+      (symbol-leaf tree)
+      (caddr tree)))
+(define (weight tree)
+  (if (leaf? tree)
+      (weight-leaf tree)
+      (cadddr tree)))
+        
+  
+         
+
+     
+           
 
 
 

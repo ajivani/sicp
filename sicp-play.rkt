@@ -1529,24 +1529,25 @@
                                      
 
 ;;2.66,
-(;define (lookup given-key tree)
- ; (cond ((null? tree) #f)
- ;       ((equal? (key (car tree)) given-key)
- ;        (car tree))
- ;       ((> (key (car tree)) given-key)
- ;        (lookup given-key (right-branch tree)))
- ;       (else
- ;        (lookup given-key (left-branch tree)))))
+;(define (lookup given-key tree)
+; (cond ((null? tree) #f)
+;       ((equal? (key (car tree)) given-key)
+;        (car tree))
+;       ((> (key (car tree)) given-key)
+;        (lookup given-key (right-branch tree)))
+;       (else
+;        (lookup given-key (left-branch tree)))))
 
 ;representing huffman trees
 (define (make-leaf symbol weight)
   (list 'leaf symbol weight))
 (define (leaf? obj)
-  (eq? (car obj) 'leaf))
+  (and (pair? obj)
+       (eq? (car obj) 'leaf)))
 (define (symbol-leaf leaf)
-  (cadr leaf))
+  (cadr leaf)); get second element (leaf 'a 3) => A
 (define (weight-leaf leaf)
-  (caddr leaf))
+  (caddr leaf)); get third element (leaf 'a 3) => 3
 
 ;;set of symbols just a list of symbols (doesn't need to be ordered set - no benefit to that)
 ;make a tree by merging 2 nodes we get sum of weights and union of sets of all the symbols
@@ -1558,17 +1559,92 @@
 ;;selectors for the above tree
 (define (left-branch-h tree) (car tree))
 (define (right-branch-h tree) (cadr tree))
-(define (symbols tree)
+
+(define (symbols tree) ;general procedure - different if leaf vs tree
   (if (leaf? tree)
-      (symbol-leaf tree)
+      (list (symbol-leaf tree)); since eventualliy this will have an append associated with it
       (caddr tree)))
-(define (weight tree)
+(define (weight tree) ;general procedure 
   (if (leaf? tree)
       (weight-leaf tree)
       (cadddr tree)))
-        
-  
-         
+
+;;decoding
+(define (decode bits tree)
+  (define (decode-helper bits current-branch)
+    (if (null? bits)
+        '()
+        (let ((next-branch (choose-branch (car bits) current-branch)))
+          (if (leaf? next-branch)
+              (cons (symbol-leaf next-branch)
+                    (decode-helper (cdr bits) tree)); go back to the start of the start of the tree and start finding stuff
+              (decode-helper (cdr bits) next-branch)))))
+  (decode-helper bits tree))
+(define (choose-branch bit branch)
+  (cond ((= 0 bit) (left-branch-h branch))
+        ((= 1 bit) (right-branch-h branch))
+        (else
+         (error "bad bit -- CHOOSE-BRANCH" bit))))
+
+;;will be working with sets of leaves - always merging the smallest ones so
+;;options - heap , ordered lists
+(define (adjoin-set-h x set)
+  (cond ((null? set)
+         (list x))
+        ((< (weight x) (weight (car set)))
+         (cons x set))
+        (else
+         (cons (car set) (adjoin-set-h x (cdr set))))))
+
+;symbol-frequency pairs such as ((A 4) (B 2) (C 1) (D 1)) and constructs an initial ordered set of leaves, ready to be merged
+;ordered set of functions
+(define (make-leaf-set pairs)
+ (if (null? pairs)
+     '()
+     (let ((pair (car pairs)))
+       (adjoin-set-h (make-leaf (car pair) (cadr pair)) ;(A 4) => symbol = A and frequency = 4 in this example
+                     (make-leaf-set (cdr pairs))))))
+
+;;make an encoding similar to decoding
+(define sample-tree
+  (make-huff-tree (make-leaf 'a 4)
+                  (make-huff-tree (make-leaf 'b 3)
+                                  (make-huff-tree (make-leaf 'c 1)
+                                                  (make-leaf 'd 1)))))
+
+(define sample-message '(0 1 1 0 0 1 0 1 0 1 1 1 0))
+
+;(decode sample-message sample-tree)
+'((leaf a 4) ((leaf b 3) ((leaf c 1) (leaf d 1) (c d) 2) (b c d) 5) (a b c d) 9)
+
+;;ret list of bits that give the encoded message
+(define (encode message tree)
+  (if (null? message)
+      '()
+      (append (encode-symbol (car message) tree)
+              (encode (cdr message) tree))))
+
+;if we find the path we're good, otherwise check the left and right branches
+(define (encode-symbol symb tree)
+  (define (encode-symb-helper symb tree path)
+    (cond ((and (leaf? tree)
+                (eq? symb (symbol-leaf tree)))
+           path)
+          ((leaf? tree)
+           #f)
+          (else
+           (or (encode-symb-helper symb (left-branch-h tree) (append path (list 0)))
+               (encode-symb-helper symb (right-branch-h tree) (append path (list 1)))))))
+  (let ((result (encode-symb-helper symb tree '())))
+    (if (equal? #f result)
+        (error "the folowing symbol was not found: " symb)
+        result)))
+;;2.68               
+(equal? (encode (decode sample-message sample-tree) sample-tree)
+     sample-message)
+    
+      
+    
 
      
            

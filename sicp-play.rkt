@@ -444,7 +444,7 @@
 (define (get-area rect)
   (* (get-length rect)
      (get-width rect)))
-(define (get-perimiter rect)
+(define (get-perimiter rect) 
   (* 2 (+ (get-length rect)
           (get-width rect))))
 ;;this works above
@@ -1109,6 +1109,9 @@
 
 
 
+
+
+
 ;;key is we reduce by computing S - x
 (define (remove-2 x lst)
   (cond ((null? lst) null)
@@ -1511,6 +1514,30 @@
 ;(partial-tree '(1 2 3 4 5) 5)
 ;(list->tree (enumerate-interval 1 100))
 
+(define (lookup given-key set-of-records)
+  (if (null? set-of-records)
+      #f
+      (let ((entry-key (car (car set-of-records))))
+        (cond ((string=? given-key entry-key) (entry set-of-records))
+              ((string<? given-key entry-key)
+               (lookup given-key (left-branch set-of-records)))
+              ((string>? given-key entry-key)
+               (lookup given-key (right-branch set-of-records)))))))
+
+;;example of a record
+(define evil-corp-employees
+  (list->tree (list (cons "John Doe"
+                          (list->tree (list (cons "address" "55 Ghetto Grove")
+                                            (cons "salary" 100))))
+                    (cons "Myddle Mann"
+                          (list->tree (list (cons "address" "24 Suburb Street")
+                                            (cons "salary" 40000))))
+                    (cons "Ritchie Rich"
+                          (list->tree (list (cons "address" "1 Park Avenue")
+                                            (cons "salary" 250000)))))))
+
+
+
 
 ;;2.65 union-set and intersection-set in o(n) time, would need both functions above,
 ;see how it's like a laplace transform
@@ -1628,7 +1655,7 @@
 (define (encode-symbol symb tree)
   (define (encode-symb-helper symb tree path)
     (cond ((and (leaf? tree)
-                (eq? symb (symbol-leaf tree)))
+                (equal? symb (symbol-leaf tree)))
            path)
           ((leaf? tree)
            #f)
@@ -1642,11 +1669,381 @@
 ;;2.68               
 (equal? (encode (decode sample-message sample-tree) sample-tree)
      sample-message)
-    
-      
-    
 
-     
+
+;2.69
+(define (generate-huff-tree-wrong pairs)
+  (successive-merge2 (make-leaf-set pairs)))
+
+;;right track but notice you're just placing it into the first spot instead of keeping the ordered list (miss an invariant of the ordered list)
+;;WRONG
+(define (successive-merge pairs)
+  (if (<= (length pairs) 1)
+      pairs
+      (let ((p1 (car pairs))
+            (p2 (cadr pairs)))
+        (display p1)
+        (display p2)
+        (successive-merge (cons (make-huff-tree p1 p2) ;cons will be wrong since messes up invariant
+                                (cddr pairs))))))
+
+;;almost right
+(define (successive-merge2 pairs)
+  (if (<= (length pairs) 1)
+      pairs ;correct answer is to return (car pairs)
+      (let ((p1 (car pairs)) ;adjoin the first and second smallest things (remember it's an ordered list)
+            (p2 (cadr pairs)))
+        ;(display pairs)
+        ;(newline)
+        (successive-merge2 (adjoin-set-h (make-huff-tree p1 p2)
+                                         (cddr pairs))))))
+
+
+
+(define (generate-huff-tree pairs)
+  (successive-merge3 (make-leaf-set pairs)))
+;;the actual correct version to use
+(define (successive-merge3 pairs)
+  (if (<= (length pairs) 1)
+      (car pairs) ;correct answer is to return (car pairs) - return the tree not a list of something that has the tree
+      (let ((p1 (car pairs)) ;adjoin the first and second smallest things (remember it's an ordered list)
+            (p2 (cadr pairs)))
+        (successive-merge2 (adjoin-set-h (make-huff-tree p1 p2)
+                                         (cddr pairs))))))
+
+;;confirm it - make the sample tree and encode / decode the message
+(define sample-tree2 (generate-huff-tree-wrong '((a 4) (b 3) (c 1) (d 1))))
+(encode '(a c a b b d a) sample-tree2) ;longer -> means something i did was wrong -> (0 0 0 1 0 1 0 0 0 1 1 0 1 1 0 1 0 0 0 0)
+(encode '(a c a b b d a) sample-tree) ;shorter -> (0 1 1 0 0 1 0 1 0 1 1 1 0)
+(encode '(a c a b b d a) (car sample-tree2)); ->  (0 1 0 1 0 1 1 1 1 1 0 0 0) ;same length
+
+;using this test i's clear that the sample-tree2 is not an ideal sample tree (notice it alwas has one more bit than necessary (huffman always provides the least amount of bits even if not identical
+(map (lambda (char)
+       (list char
+             (encode (list char) sample-tree)
+             (encode (list char) sample-tree2)
+             (encode (list char) (car sample-tree2))))
+     '(a b c d))
+        
+;;2.70
+(define sample-tree3 (generate-huff-tree '((a 2) (na 16) (boom 1) (sha 3) (get 2) (yip 9) (job 2) (wah 1))))
+
+(length (encode '(get a job sha na na na na na na na na get a job sha na na na na na na na na wah yip yip yip yip yip yip yip yip yip sha boom) (car sample-tree3)))
+;takes 84 bits
+;;2^3 = 8 meaning we woud need 3 bits per so it would be (* 3 (length '(get a job sha na na na na na na na na get a job sha na na na na na na na na wah yip yip yip yip yip yip yip yip yip sha boom))
+;;= 108 bits, so huffman is much smaller
+
+;;2.71 - seems like the type of tree to not have many left branches
+;;most frequent symbol will always be just 0 (the left branch of tree), and otherwise should be for example worst case n = depth of tree, since nothing on leftl
+
+
+;;;Section 2.4 multiple reps of abstract data - (think of the vertical barriers)
+
+;;We want to be able to do both of these:
+;(make-from-real-imag (real-part z) (imag-part z))
+;(make-from-mag-ang (magnitude z) (angle z))
+
+;;which ever representation we choose below we should have the right answer
+;;note here we've chosen 1 particular set of functions 
+(define (add-complex% z1 z2)
+  (make-from-real-imag% (+ (real-part% z1) (real-part% z2)
+                          (imag-part% z1) (imag-part% z2))))
+(define (sub-complex% z1 z2)
+  (make-from-real-imag% (- (real-part% z1) (real-part% z2)
+                          (imag-part% z1) (imag-part% z2))))
+(define (mul-complex% z1 z2)
+  (make-from-mag-ang% (* (mag% z1) (mag% z2))
+                      (+ (ang% z1) (ang% z2))))
+(define (div-complex% z1 z2)
+  (make-from-mag-ang% (/ (mag%% z1) (mag% z2)) ;threw a random %% n there to show it messes up here since we did not consistently follow polar-angle or real-imag format for
+                      (- (ang% z1) (ang% z2))));numbers, how does (3 4) is that polar or regular notation?
+
+;;now we have to choose a representation and choose constructors and selctors
+;;so we have to pick option 1 XOR option 2 here
+
+;;option 1 real form
+(define (real-part% z1) (car z1))
+(define (imag-part% z1) (cdr z1))
+(define (mag% z) (sqrt (+ (sq (real-part% z)) (sq (imag-part% z))))); see how this is tricky 
+(define (ang% z) (atan (imag-part% z) (real-part% z)))
+(define (make-from-real-imag% x y) (cons x y))
+(define (make-from-mag-ang% r a) (cons (* (cos a) r) (* (sin a) r)))
+
+;;option 2 polar form
+(define (real-part%% z)(* (mag%% z) (cos (ang%% z))))
+(define (imag-part%% z) (* (mag%% z) (sin (ang%% z))))
+(define (mag%% z) (car z))
+(define (ang%% z) (cdr z))
+(define (make-from-real-imag%% x y);see how this is tricky
+ (cons (sqrt (+ (sq x) (sq y)))
+       (atan y x)))
+(define (make-from-mag-ang%% r a) (cons r a))
+
+;;so because we've abstracted data we can choose eiher implementation and for example
+;(make-from-real-imag%% 3 4); => '(5 . 0.9272952180016122)
+;(make-from-mag-ang% 5  0.9272952180016122) ; => '(3.0000000000000004 . 3.9999999999999996)
+
+;;problem above which representation are we using, regular in the first and polar in the second, so something is off
+(mul-complex% (cons 3 4) (cons 5 (atan 4 3)));
+
+;(mag% (cons 3 4)); -> 5 in regular 
+;(mag%% (cons 3 4)); -> 3 in polar
+;(real-part%% (make-from-mag-ang%% 5  (atan 4 3)))
+
+;;;we need to tag data to tell what type we're looking at
+;;;;2.4.2 TAGGED DATA
+;;PRINCIPLE OF LEAST COMMITMENT
+;;implement tags with just a list structure
+(define (attach-tag tag-type conents)
+  (cons tag-type conents))
+(define (type-tag datum)
+  (if (pair? datum)
+      (car datum)
+      (error "BAD tagged datum -- TYPE TAG" datum)))
+(define (contents datum)
+  (if (pair? datum)
+      (cdr datum)
+      (error "bad tagged datum -- CONTENTS" datum)))
+;;something to read the type-tags and determine the type
+(define (rect? z)
+  (eq? (type-tag z) 'rect))
+(define (polar? z)
+  (eq? (type-tag z) 'polar))
+;;so now each selctor constructor must have a tag
+;;so now option 1 becomes this
+(define (real-part-rect z) (car z))
+(define (imag-part-rect z) (cdr z))
+(define (mag-rect z)
+  (sqrt (+ (sq (real-part-rect z))
+           (sq (imag-part-rect z)))))
+(define (ang-rect z)
+  (atan (imag-part-rect z)
+        (real-part-rect z)))
+(define (make-from-real-imag-rect x y)
+  (attach-tag 'rect (cons x y)))
+(define (make-from-mag-ang-rect r a)
+  (attach-tag 'rect (cons (* (cos a) r)
+                          (* (sin a) r))))
+;;and ooption 2 becoomes
+(define (real-part-polar z)
+  (* (mag-polar z) (cos (ang-polar z))))
+(define (imag-part-polar z)
+  (* (mag-polar z) (sin (ang-polar z))))
+(define (mag-polar z) (car z))
+(define (ang-polar z) (cdr z))
+(define (make-from-real-imag-polar x y)
+  (attach-tag 'polar (cons (sqrt (+ (sq x) (sq y)))
+                           (atan y x))))
+(define (make-from-mag-ang-polar r a)
+  (cons r a))
+;;way to get real and imag changes, so we just check the type in the selector constructors and 
+(define (real-part%%% z)
+  (cond ((rect? z)
+         (real-part-rect (contents z)))
+        ((polar? z)
+         (real-part-polar (contents z)))
+        (else
+         (error "unknown type - REAL-PART" z))))
+(define (imag-part%%% z)
+  (cond ((rect? z)
+         (imag-part-rect (contents z)))
+        ((polar? z)
+         (imag-part-polar (contents z)))
+        (else
+         (error "unknown type - IMAG-PART" z))))
+(define (mag%%% z)
+  (cond ((rect? z)
+         (mag-rect (contents z)))
+        ((polar? z)
+         (mag-polar (contents z)))
+        (else
+         (error "unknown type - MAGNITUDE" z))))
+(define (ang%%% z)
+  (cond ((rect? z)
+         (ang-rect (contents z)))
+        ((polar? z)
+         (ang-polar (contents z)))
+        (else
+         (error "unknown type - ANGLE" z))))
+;;AND now we need to just do the add sub mul divide
+;;see how this is exaclty the same as before ignore all the %%% that's just for versions
+;;no change here
+(define (add-complex%%% z1 z2)
+  (make-from-real-imag%%% (+ (real-part%%% z1) (real-part%%% z2))
+                       (+ (imag-part%%% z1) (imag-part%%% z2))))
+
+;;FINALLY WE HAVE TO MAKE A DECISION TO USE OPTION1 OR OPTION2
+;;so use rect if we have real and imaginary and use polar when we have mag and angle
+(define (make-from-real-imag%%% x y)
+  (make-from-real-imag-rect x y))
+(define (make-from-mag-ang%%% r a)
+  (make-from-mag-ang-polar r a))
+
+
+;;dispatching on type - check type of datum and call appropriate procedure
+;;see how real-part imag-part need to know all the types and need to be modified every time we have a new type for each generic interface
+;;also the names must be unique real-part-imag vs real-part-polar so implementing generic interfaces is not additive. 
+
+;;2.4.3 Data directed Programming and Additivity - data-directed-programming.rkt
+
+
+
+;;2.75 message passing
+(define (make-from-real-imag-mp x y)
+  (define (dispatch op)
+    (cond ((eq? op 'real-part) x)
+          ((eq? op 'imag-part) y)
+          ((eq? op 'magnitude) (sqrt (+ (sq x) (sq y))))
+          ((eq? op 'angle) (atan y x))
+          (else
+           (error "unknoown op -- make-from-real" op))))
+  dispatch)
+
+;;see how this is working, it's returning a function disptach and then assuming you just gave it a name
+(define (make-from-mag-ang-mp r a)
+  (define (dispatch op)
+    (cond ((eq? op 'magnitude) r)
+          ((eq? op 'angle) a)
+          ((eq? op 'real-part) (* r (cos a)))
+          ((eq? op 'imag-part) (* r (sin a)))
+          (else
+           (error "unkonwn op -- make-from-mag-ang" op))))
+  dispatch)
+
+;;so to test this out and see ohw to sue this
+
+(define (deg->rad d)
+  (/ (* pi d) 180))
+
+
+(define (apply-generic% op arg) (arg op))
+
+
+;;lets see  this message passing in example
+(define *mp-a* (make-from-real-imag-mp 3 4))
+(define *mp-b* (make-from-mag-ang-mp 5 (degrees->radians 60)))
+
+(*mp-a* 'magnitude); -> that works
+(apply-generic% 'magnitude *mp-a*); -> works
+
+;one step further say you already have magnitude defined to have the type alredy specified
+(define (magnitude% z)
+  (apply-generic% 'magnitude z))
+
+(magnitude% *mp-b*) ;now (magnitude *message-passed-var*) works since we're using apply-generc to defne the tppe 'magnitude (ABOVE) anyway
+(magnitude% *mp-a*)
+
+;;;2.5 Systems with generic operations
+;data items can be represented in more than one way, message passing, as well as data directed programmind, as well
+;link the code that specifies the data operations to the several representations by means of generic interface procedures
+
+(define (get operation type)
+  null)
+(define (put operation type funct)
+  null)
+
+(define (apply-generic op . args)
+  (let ((type-tags (map type-tag args)))
+    (let ((proc (get op type-tags)))
+      (if proc
+          (apply proc (map contents args))
+          (error
+           "No method for these types -- APPLY-GENERIC"
+           (list op type-tags))))))
+;the . args means put the rest of the items in a list
+;;normally z will look like this -> '(complex (polar (3 .23)) for example note the 2 layers of tagging
+;;so normally apply generic looks like (define (magnitude z) (apply-generic 'magnitude z))
+;;so the important line is (map type-tag (z)) since args = (z) in this scenario and not just z
+;;look at hte next line then (apply proc (map contents args)) = (apply proc (map cdr (z)) -> (apply proc '(polar (3 .23)) 
+
+;nah not needed
+(define (make-funct symb)
+  (lambda (x y)
+    (apply-generic symb x y)))
+
+(define (add% x y) (apply-generic 'add x y))
+(define (sub x y) (apply-generic 'sub x y))
+(define (mul x y) (apply-generic 'mul x y))
+(define (div x y) (apply-generic 'div x y))
+
+(define (install-number-package)
+  (define (tag x)
+    (attach-tag 'scheme-number x))
+  (put 'add '(scheme-number scheme-number)
+       (lambda (x y) (tag (+ x y))))
+  (put 'sub '(scheme-number scheme-number)
+       (lambda (x y) (tag (- x y))))
+  (put 'mul '(scheme-number scheme-number)
+       (lambda (x y) (tag (* x y))))
+  (put 'div '(scheme-number scheme-number)
+       (lambda (x y) (tag (/ x y))))
+  (put 'make 'scheme-number
+       (lambda (x) (tag x)))
+  'done)
+
+;;how you'd use this
+(define (make-scheme-number n)
+  ((get 'make 'scheme-number) n))
+
+(define (install-rational-package)
+  ;first the internal procedures
+  (define (numer x) (car x))
+  (define (denom x) (cdr x))
+  (define (make-rat n d)
+    (let ((g (gcd n d)))
+      (cons (/ n g) (/ d g))))
+  (define (add-rat x y)
+    (make-rat (+ (* (numer x) (denom y))
+                 (* (numer y) (denom x)))
+              (* (denom x) (denom y))))
+  (define (sub-rat x y)
+    (make-rat (- (* (numer x) (denom y))
+                 (* (numer y) (denom x)))
+              (* (denom x) (denom y))))
+  (define (mul-rat x y)
+    (make-rat (* (numer x) (numer y))
+              (* (denom x) (denom y))))
+  (define (div-rat x y)
+    (make-rat (* (numer x) (denom y))
+              (* (denom x) (numer y))))
+  ;;interface to the rest of the system
+  (define (tag x) (attach-tag 'rational x))
+  (put 'add '(rational rational)
+       (lambda (x y) (tag (add-rat x y))))
+  (put 'sub '(rational rational)
+       (lambda (x y) (tag (sub-rat x y))))
+  (put 'mul '(rational rational)
+       (lambda (x y) (tag (mul-rat x y))))
+  (put 'div '(rational rational)
+       (lambda (x y) (tag (div-rat x y))))
+  (put 'make 'rational
+       (lambda (n d) (tag (make-rat n d))))
+  'done)
+
+;;how to use it after installing hte package
+(define (make-rational n d)
+  ((get 'make 'rational) n d))
+;;-> looks something like '(rational (3 . 4))
+
+(define (install-complex-package)
+  ;;imported procedures from the rectangular and polar packages
+  (define (make-from-real-imag x y)
+    ((get 'make-from-real-imag 'rect) x y))
+  (define (make-from-mag-ang r a)
+    ((get 'make-from-mag-ang 'polar) r a))
+  ;;internal procedures
+  (define (add-complex z1 z2)
+    (make-from-real-imag (+ (real-part z1) (real-part z2))
+                         (+ (imag-part z1) (imag-part z2))))
+  (define (sub-complex z1 z2)
+    (make-from-real-imag (- (real-part z1) (real-part z2))
+                         (- (imag-part z1) (imag-part z2))))
+  (define (mul-complex z1 z2)
+    (make-from-mag-ang (* (mag z1) (mag z2))
+                       (+ (ang z1) (ang z2))))
+  define (mul-complex z1 z2)
+    (make-from-mag-ang (/ (mag z1) (mag z2))
+                       (- (ang z1) (ang z2))))
            
 
 
